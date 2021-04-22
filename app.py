@@ -113,6 +113,7 @@ def login():
 def logout():
     """Handle logout of user."""
 
+    flash("Successfully logged out!")
     session.pop(CURR_USER_KEY)
     return redirect('/login', code=302)
 
