@@ -321,7 +321,7 @@ def homepage():
 
         messages = (Message
                     .query
-                    .filter(Message.id.in_(message_targets))
+                    .filter(Message.user_id.in_(message_targets))
                     .order_by(Message.timestamp.desc())
                     .limit(100)
                     .all())
