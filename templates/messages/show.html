@@ -13,7 +13,8 @@
           <div class="message-area">
             <div class="message-heading">
               <a href="/users/{{ message.user.id }}">@{{ message.user.username }}</a>
-              {% if g.user %}
+              <div>
+                {% if g.user %}
                 {% if g.user.id == message.user.id %}
                   <form method="POST"
                         action="/messages/{{ message.id }}/delete">
@@ -30,6 +31,8 @@
                   </form>
                 {% endif %}
               {% endif %}
+              </div>
+
               <div>
               {% if g.user.id != message.user_id %}
               <form method="POST" action="/users/add_like/{{ message.id }}" id="messages-form">
