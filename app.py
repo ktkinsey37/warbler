@@ -3,7 +3,7 @@ import os
 from flask import Flask, render_template, request, flash, redirect, session, g
 from flask_debugtoolbar import DebugToolbarExtension
 from sqlalchemy.exc import IntegrityError
-
+from flask_wtf import FlaskForm
 from forms import UserAddForm, LoginForm, MessageForm, EditUserProfileForm
 from models import db, connect_db, User, Message
 
@@ -152,7 +152,7 @@ def users_show(user_id):
                 .order_by(Message.timestamp.desc())
                 .limit(100)
                 .all())
-    return render_template('users/show.html', user=user, messages=messages)
+    return render_template('users/show.html', curr_user=g.user, user=user, messages=messages)
 
 
 @app.route('/users/<int:user_id>/following')
@@ -284,7 +284,29 @@ def messages_show(message_id):
     """Show a message."""
 
     msg = Message.query.get(message_id)
-    return render_template('messages/show.html', message=msg)
+    return render_template('messages/show.html', curr_user=g.user, message=msg)
+
+@app.route('/users/add_like/<int:message_id>', methods=["POST"])
+def like_or_unlike_message(message_id):
+    """Likes a message."""
+
+
+    msg = Message.query.get(message_id)
+
+    # If message is already in the user.likes list:
+    if msg in g.user.likes:
+        g.user.likes.remove(msg)
+
+    # If message is the users own message (This should all be redundant now)
+    # elif msg.user_id is g.user.id:
+    #     flash('You can not like your own tweets')
+    #     return redirect(f'/messages/{message_id}')
+
+    else:
+        g.user.likes.append(msg)
+    
+    db.session.commit()
+    return redirect('/', code=302)
 
 
 @app.route('/messages/<int:message_id>/delete', methods=["POST"])
@@ -316,7 +338,7 @@ def homepage():
 
     if g.user:
 
-        message_targets = [f.id for f in g.user.followers]
+        message_targets = [f.id for f in g.user.following]
         message_targets.append(g.user.id)
 
         messages = (Message
@@ -326,7 +348,7 @@ def homepage():
                     .limit(100)
                     .all())
 
-        return render_template('home.html', messages=messages)
+        return render_template('home.html', messages=messages, user=g.user)
 
     else:
         return render_template('home-anon.html')
@@ -348,3 +370,20 @@ def add_header(req):
     req.headers["Expires"] = "0"
     req.headers['Cache-Control'] = 'public, max-age=0'
     return req
+
+
+
+
+
+# <!-- Below is a template for a successful warble w/ like button (checks if warble is from the g.user to determine if to display it, then checks if its in the likes list to display proper button) -->
+# <!--             {% if user.id != msg.user_id %}
+#             <form method="POST" action="/users/add_like/{{ msg.id }}" id="messages-form">
+#               <button class="
+#                 btn 
+#                 btn-sm 
+#                 {{'btn-primary' if msg.id in user.likes else 'btn-secondary'}}"
+#               >
+#                 <i class="fa fa-thumbs-up"></i> 
+#               </button>
+#             </form>
+#             {% endif %} -->
