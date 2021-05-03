@@ -50,9 +50,85 @@ class UserModelTestCase(TestCase):
             password="HASHED_PASSWORD"
         )
 
+        # User can be created and added
         db.session.add(u)
         db.session.commit()
 
         # User should have no messages & no followers
         self.assertEqual(len(u.messages), 0)
         self.assertEqual(len(u.followers), 0)
+
+        # User repr method works properly
+        self.assertEqual(repr(u), '<User #None: testuser, test@test.com>')
+
+    def test_user_model_following(self):
+        """Do the following methods work for users?"""
+
+        # Adds 2 users and links them via follow
+        u = User(
+            email="test@test.com",
+            username="testuser",
+            password="HASHED_PASSWORD"
+        )
+
+        u2 = User(
+            email="test@test.com",
+            username="testuser2",
+            password="HASHED_PASSWORD"
+        )
+
+        db.session.add(u)
+        db.session.add(u2)
+        u.followers.append(u2)
+        db.session.commit()
+
+        # Checks that, once following, both users show that relationship
+        self.assertEqual(u.followers[0].id, u2.id)
+        self.assertEqual(u2.following[0].id, u.id)
+
+        u.followers.pop(u2)
+        db.session.commit()
+
+        # Unfollows and verifies the relationship is broken
+        self.assertEqual(len(u.followers), 0)
+        self.assertEqual(len(u2.following), 0)
+
+    def test_user_creation_failures(self):
+        """Will the creation of users fail when passed incorrect info?"""
+
+        u = User(
+            email="",
+            username="testuser",
+            password="HASHED_PASSWORD"
+        )
+
+        u2 = User(
+            email="test@email.com",
+            username="",
+            password="HASHED_PASSWORD"
+        )
+
+        u3 = User(
+            email="test@email.com",
+            username="testuser",
+            password=""
+        )
+
+        # self.asserError(whenever they commit?)
+
+    def test_user_authentication(self):
+        """Does user properly authenticate?"""
+
+        u = User(
+            email="test@test.com",
+            username="testuser",
+            password="HASHED_PASSWORD"
+        )
+
+        db.session.add(u)
+        db.session.commit()
+
+        # Checkes if the authentication process works properly and fails properly
+        self.assertEqual(u.authenticate('testuser', 'HASHED_PASSWORD'), u)
+        self.assertEqual(u.authenticate('testuse', 'HASHED_PASSWORD'), False)
+        self.assertEqual(u.authenticate('testuser', 'HASHED_PASSWOR'), False)

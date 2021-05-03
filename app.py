@@ -230,7 +230,7 @@ def profile():
         g.user.email = form.email.data
         g.user.image_url = form.image_url.data
         g.user.header_image_url = form.header_image_url.data
-        g.user.bio =form.bio.data
+        g.user.bio = form.bio.data
         db.session.commit()
         return redirect(f'/users/{g.user.id}', code=302)
     # This is if the form doesn't validate, it's a get request
@@ -269,6 +269,7 @@ def messages_add():
 
     Show form if GET. If valid, update message and redirect to user page.
     """
+    print("HELLLLLO?????")
 
     if not g.user:
         flash("Access unauthorized.", "danger")
@@ -280,6 +281,10 @@ def messages_add():
         msg = Message(text=form.text.data)
         g.user.messages.append(msg)
         db.session.commit()
+
+        print(msg, "***************************")
+        print(msg, msg.user_id, g.user.id, "*************************")
+        print("************************************************************")
 
         return redirect(f"/users/{g.user.id}")
 
@@ -303,11 +308,6 @@ def like_or_unlike_message(message_id):
     # If message is already in the user.likes list:
     if msg in g.user.likes:
         g.user.likes.remove(msg)
-
-    # If message is the users own message (This should all be redundant now)
-    # elif msg.user_id is g.user.id:
-    #     flash('You can not like your own tweets')
-    #     return redirect(f'/messages/{message_id}')
 
     else:
         g.user.likes.append(msg)

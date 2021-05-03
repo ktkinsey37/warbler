@@ -49,10 +49,17 @@ class MessageViewTestCase(TestCase):
                                     password="testuser",
                                     image_url=None)
 
+        u2 = User.signup(username="testuser2",
+                                    email="test@test.com",
+                                    password="testuser",
+                                    image_url=None)
+
+        msg = Message(text="hello", user_id=u2.id)
+
         db.session.commit()
 
-    def test_add_message(self):
-        """Can use add a message?"""
+    def test_add_and_delete_message(self):
+        """Can user add a message?"""
 
         # Since we need to change the session to mimic logging in,
         # we need to use the changing-session trick:
@@ -69,5 +76,66 @@ class MessageViewTestCase(TestCase):
             # Make sure it redirects
             self.assertEqual(resp.status_code, 302)
 
-            msg = Message.query.one()
+            test_msg = Message.query.one()
             self.assertEqual(msg.text, "Hello")
+
+            resp = c.post(f"/messages/{test_msg.id}/delete")
+
+            self.assertEqual(resp.status_code, 302)
+            self.assertEqual(self.testuser.messages[0], None)
+
+    def test_add_and_delete_msg_unauthenticated(self):
+        """Will an unathenticated user fail to delete message?"""
+
+        with self.client as c:
+            with c.session_transaction() as sess:
+                sess.pop(CURR_USER_KEY)
+
+            resp = c.post("/messages/new", data={"text": "Hello"})
+            html = resp.get_data(as_text=True)
+
+            # Make sure it throws an error and redirect
+            self.assertEqual(resp.status_code, 302)
+            self.assertIn("Access unauthorized.", html)
+
+            msg = Message.query.filter(Message.user_id.is_(u2.id)).one()
+            resp = c.post(f"/messages/{msg.id}/delete", data={"text": "Hello"})
+            html = resp.get_data(as_text=True)
+
+            self.assertEqual(resp.status_code, 302)
+            self.assertIn("Access unauthorized.", html)
+
+    def test_add_and_delete_msg_unauthorized(self):
+        """Will an unauthorized user fail to delete message?"""
+
+        with self.client as c:
+            with c.session_transaction() as sess:
+                sess[CURR_USER_KEY] = self.testuser.id
+
+            fake_msg = Message(text="fake", user_id=u2.id)
+
+            resp = c.post("/messages/new", data={"text": "fake", "user_id": f"{u2.id}"})
+            # THIS KIND OF ATTACK WORKS! POSTS A MESSAGE UNDER THE WRONG USER
+            # Maybe it doesnt? Seems liek sql might break it
+
+    def test_msg_view(self):
+
+        with self.client as c:
+            with c.session_transaction() as sess:
+                sess[CURR_USER_KEY] = self.testuser.id
+
+            resp = c.get(f"/messages/{msg.id}")
+            html = resp.get_data(as_text=True)
+
+            self.assertEqual(resp.status_code, 200)
+            self.assertIn("hello", html)
+
+    def test_msg_like(self):
+
+        with self.client as c:
+            with c.session_transaction() as sess:
+                sess[CURR_USER_KEY] = self.testuser.id
+
+            resp = c.post(f"/messages/add_like/{msg.id}")
+
+            self.assertEqual(len(g.user.likes), 1)
