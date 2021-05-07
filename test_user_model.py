@@ -59,7 +59,10 @@ class UserModelTestCase(TestCase):
         self.assertEqual(len(u.followers), 0)
 
         # User repr method works properly
-        self.assertEqual(repr(u), '<User #None: testuser, test@test.com>')
+        self.assertEqual(repr(u), f'<User #{u.id}: testuser, test@test.com>')
+
+        db.session.delete(u)
+        db.session.commit()
 
     def test_user_model_following(self):
         """Do the following methods work for users?"""
@@ -72,7 +75,7 @@ class UserModelTestCase(TestCase):
         )
 
         u2 = User(
-            email="test@test.com",
+            email="test2@test.com",
             username="testuser2",
             password="HASHED_PASSWORD"
         )
@@ -86,12 +89,16 @@ class UserModelTestCase(TestCase):
         self.assertEqual(u.followers[0].id, u2.id)
         self.assertEqual(u2.following[0].id, u.id)
 
-        u.followers.pop(u2)
+        u.followers.remove(u2)
         db.session.commit()
 
         # Unfollows and verifies the relationship is broken
         self.assertEqual(len(u.followers), 0)
         self.assertEqual(len(u2.following), 0)
+
+        db.session.delete(u)
+        db.session.delete(u2)
+        db.session.commit()
 
     def test_user_creation_failures(self):
         """Will the creation of users fail when passed incorrect info?"""
@@ -103,18 +110,25 @@ class UserModelTestCase(TestCase):
         )
 
         u2 = User(
-            email="test@email.com",
+            email="test2@email.com",
             username="",
             password="HASHED_PASSWORD"
         )
 
         u3 = User(
-            email="test@email.com",
+            email="test3@email.com",
             username="testuser",
             password=""
         )
 
+        db.session.add(u)
+        db.session.commit()
+
         # self.asserError(whenever they commit?)
+        # db.session.delete(u)
+        # db.session.delete(u2)
+        # db.session.delete(u3)
+        # db.session.commit()
 
     def test_user_authentication(self):
         """Does user properly authenticate?"""
@@ -129,6 +143,9 @@ class UserModelTestCase(TestCase):
         db.session.commit()
 
         # Checkes if the authentication process works properly and fails properly
-        self.assertEqual(u.authenticate('testuser', 'HASHED_PASSWORD'), u)
-        self.assertEqual(u.authenticate('testuse', 'HASHED_PASSWORD'), False)
-        self.assertEqual(u.authenticate('testuser', 'HASHED_PASSWOR'), False)
+        self.assertEqual(User.authenticate('testuser', 'HASHED_PASSWORD'), u)
+        self.assertEqual(User.authenticate('testuse', 'HASHED_PASSWORD'), False)
+        self.assertEqual(User.authenticate('testuser', 'HASHED_PASSWORD'), False)
+
+        db.session.delete(u)
+        db.session.commit()

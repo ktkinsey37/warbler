@@ -50,12 +50,17 @@ class MessageViewTestCase(TestCase):
                                     image_url=None)
 
         u2 = User.signup(username="testuser2",
-                                    email="test@test.com",
+                                    email="test2@test.com",
                                     password="testuser",
                                     image_url=None)
 
-        msg = Message(text="hello", user_id=u2.id)
+        db.session.add(self.testuser)
+        db.session.add(u2)
+        db.session.commit()
 
+        msg = Message(text="hello", user_id=self.testuser.id)
+
+        db.session.add(msg)
         db.session.commit()
 
     def test_add_and_delete_message(self):
@@ -74,15 +79,17 @@ class MessageViewTestCase(TestCase):
             resp = c.post("/messages/new", data={"text": "Hello"})
 
             # Make sure it redirects
-            self.assertEqual(resp.status_code, 302)
+            self.assertEqual(resp.status_code, 200)
 
-            test_msg = Message.query.one()
-            self.assertEqual(msg.text, "Hello")
+            test_msg = Message.query.filter_by(user_id=self.testuser.id).first()
+            self.assertEqual(test_msg.text, "hello")
 
             resp = c.post(f"/messages/{test_msg.id}/delete")
 
-            self.assertEqual(resp.status_code, 302)
-            self.assertEqual(self.testuser.messages[0], None)
+            self.assertEqual(resp.status_code, 200)
+
+            self.testuser = User.query.filter_by(id=self.testuser.id).first()
+            self.assertEqual(test_msg in self.testuser.messages, False)
 
     def test_add_and_delete_msg_unauthenticated(self):
         """Will an unathenticated user fail to delete message?"""
@@ -98,7 +105,7 @@ class MessageViewTestCase(TestCase):
             self.assertEqual(resp.status_code, 302)
             self.assertIn("Access unauthorized.", html)
 
-            msg = Message.query.filter(Message.user_id.is_(u2.id)).one()
+            msg = Message.query.filter_by(user_id=u2.id).one()
             resp = c.post(f"/messages/{msg.id}/delete", data={"text": "Hello"})
             html = resp.get_data(as_text=True)
 
@@ -112,6 +119,7 @@ class MessageViewTestCase(TestCase):
             with c.session_transaction() as sess:
                 sess[CURR_USER_KEY] = self.testuser.id
 
+            u2 = User.query.filter_by(username='testuser2').first()
             fake_msg = Message(text="fake", user_id=u2.id)
 
             resp = c.post("/messages/new", data={"text": "fake", "user_id": f"{u2.id}"})
@@ -123,6 +131,9 @@ class MessageViewTestCase(TestCase):
         with self.client as c:
             with c.session_transaction() as sess:
                 sess[CURR_USER_KEY] = self.testuser.id
+
+            self.testuser = User.query.filter_by(id=self.testuser.id).first()
+            msg = self.testuser.messages[0]
 
             resp = c.get(f"/messages/{msg.id}")
             html = resp.get_data(as_text=True)
@@ -136,6 +147,12 @@ class MessageViewTestCase(TestCase):
             with c.session_transaction() as sess:
                 sess[CURR_USER_KEY] = self.testuser.id
 
-            resp = c.post(f"/messages/add_like/{msg.id}")
 
-            self.assertEqual(len(g.user.likes), 1)
+            self.testuser = User.query.filter_by(id=self.testuser.id).first()
+            msg = self.testuser.messages[0]
+
+            resp = c.post(f"/users/add_like/{msg.id}")
+
+            self.testuser = User.query.filter_by(id=self.testuser.id).first()
+
+            self.assertEqual(len(self.testuser.likes), 1)

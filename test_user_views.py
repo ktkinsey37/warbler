@@ -17,7 +17,6 @@ from models import db, connect_db, Message, User
 
 os.environ['DATABASE_URL'] = "postgresql:///warbler-test"
 
-
 # Now we can import app
 
 from app import app, CURR_USER_KEY
@@ -31,6 +30,7 @@ db.create_all()
 # Don't have WTForms use CSRF at all, since it's a pain to test
 
 app.config['WTF_CSRF_ENABLED'] = False
+app.config['PRESERVE_CONTEXT_ON_EXCEPTION'] = False
 
 
 class UserViewTestCase(TestCase):
@@ -49,8 +49,8 @@ class UserViewTestCase(TestCase):
                                     password="testuser",
                                     image_url=None)
 
-        u2 = User.signup(username="testuser2",
-                                    email="test@test.com",
+        User.signup(username="testuser2",
+                                    email="test2@test.com",
                                     password="testuser",
                                     image_url=None)
 
@@ -60,17 +60,17 @@ class UserViewTestCase(TestCase):
 
         with self.client as c:
             with c.session_transaction() as sess:
-                sess.pop(CURR_USER_KEY)
+                sess[CURR_USER_KEY] = ""
 
-            resp = c.get("/signup")
-            html = resp.get_data(as_text=True)
+                resp = c.get("/signup")
+                html = resp.get_data(as_text=True)
 
-            self.assertIn("Sign me up!", html)
+                self.assertIn("Sign me up!", html)
 
-            resp = c.post("/signup", data={"username":"testuser3","email":"test@test.com","password":"test"})
-            html = resp.get_data(as_text=True)
+                resp = c.post("/signup", data={"username":"testuser3","email":"test@test.com","password":"test"})
+                html = resp.get_data(as_text=True)
 
-            self.assertIn("@testuser3", html)
+                self.assertIn("testuser3", html)
 
         with self.client as c:
             with c.session_transaction() as sess:
@@ -85,22 +85,22 @@ class UserViewTestCase(TestCase):
 
             # Checks login page without user in session. Tests get, successful post, failed post, and then user in session.
             with c.session_transaction() as sess:
-                sess.pop(CURR_USER_KEY)
+                sess[CURR_USER_KEY] = ""
 
-            resp = c.get("/login")
-            html = resp.get_data(as_text=True)
+                resp = c.get("/login")
+                html = resp.get_data(as_text=True)
 
-            self.assertIn("Log in", html)
+                self.assertIn("Log in", html)
 
-            resp = c.post("/login", data={"username":"testuser", "password": "testuser"})
-            html = resp.get_data(as_text=True)
+                resp = c.post("/login", data={"username":"testuser", "password": "testuser"}, follow_redirects=True)
+                html = resp.get_data(as_text=True)
 
-            self.assertIn("Hello, testuser!", html)
+                self.assertIn("Hello, testuser!", html)
 
-            resp = c.post("/login", data={"username":"testuser", "password": "testuse"})
-            html = resp.get_data(as_text=True)
+                resp = c.post("/login", data={"username":"testuser", "password": "testuse"}, follow_redirects=True)
+                html = resp.get_data(as_text=True)
 
-            self.assertIn("Invalid credentials.", html)
+                self.assertIn("Invalid credentials.", html)
 
         with self.client as c:
             with c.session_transaction() as sess:
@@ -117,10 +117,10 @@ class UserViewTestCase(TestCase):
                 sess[CURR_USER_KEY] = self.testuser.id
 
             resp = c.get("/logout")
-            html = resp.get_data(as_Text=True)
+            html = resp.get_data(as_text=True)
 
-            self.assertEqual(resp.status_code, 302)
-            self.assertIn("Log in", html)
+            self.assertEqual(resp.status_code, 200)
+            self.assertIn("/login", html)
 
     def test_users_view(self):
 
@@ -129,7 +129,7 @@ class UserViewTestCase(TestCase):
                 sess[CURR_USER_KEY] = self.testuser.id
 
             resp = c.get('/users')
-            html = resp.get_data(as_Text=True)
+            html = resp.get_data(as_text=True)
 
             self.assertIn("@testuser", html)
 
@@ -140,7 +140,7 @@ class UserViewTestCase(TestCase):
                 sess[CURR_USER_KEY] = self.testuser.id
 
             resp = c.get(f'/users/{self.testuser.id}')
-            html = resp.get_data(as_Text=True)
+            html = resp.get_data(as_text=True)
 
             self.assertIn("@testuser", html)
 
@@ -148,21 +148,25 @@ class UserViewTestCase(TestCase):
 
         """Tests the current user following another, un-following another, and viewing the 'following' page upon both"""
 
+
         with self.client as c:
             with c.session_transaction() as sess:
                 sess[CURR_USER_KEY] = self.testuser.id
 
-        resp = c.post(f'/users/follow/{u2.id}')
-        html = resp.get_data(as_Text=True)
+            u2 = User.query.filter_by(email='test2@test.com').first()
 
-        self.assertEqual(len(self.testuser.followers), 1)
-        self.assertIn("@testuser2", html)
+            resp = c.post(f'/users/follow/{u2.id}')
+            html = resp.get_data(as_text=True)
 
-        resp = c.post(f'/users/stop-following/{u2.id}')
-        html = resp.get_data(as_Text=True)
+            self.testuser = User.query.filter_by(email='test@test.com').first()
+            self.assertEqual(len(self.testuser.following), 1)
+            self.assertIn(f"/users/{self.testuser.id}/following", html)
 
-        self.assertEqual(len(self.testuser.followers), 0)
-        self.assertIn("@testuser2", html) #NEED TO ASSERT NOT IN
+            resp = c.post(f'/users/stop-following/{u2.id}')
+            html = resp.get_data(as_text=True)
+
+            self.assertEqual(len(self.testuser.followers), 0)
+            self.assertIn(f"/users/{self.testuser.id}/following", html) #NEED TO ASSERT NOT IN
 
 
     def test_this_user_following_view_following_remove_following(self):
@@ -173,17 +177,23 @@ class UserViewTestCase(TestCase):
             with c.session_transaction() as sess:
                 sess[CURR_USER_KEY] = self.testuser.id
 
+        u2 = User.query.filter_by(email='test2@test.com').first()
+
         c.post(f'/users/follow/{u2.id}')
 
         resp = c.get(f'/users/{u2.id}/followers')
-        html = resp.get_data(as_Text=True)
+        html = resp.get_data(as_text=True)
+
+        u2 = User.query.filter_by(email='test2@test.com').first()
         self.assertEqual(len(u2.followers), 1)
         self.assertIn("@testuser", html)
 
+        u2 = User.query.filter_by(email='test2@test.com').first()
         c.post(f'/users/stop-following/{u2.id}')
 
+        u2 = User.query.filter_by(email='test2@test.com').first()
         resp = c.get(f'/users/{u2.id}/followers')
-        html = resp.get_data(as_Text=True)
+        html = resp.get_data(as_text=True)
         self.assertEqual(len(u2.followers), 0)
         self.assertIn("@testuser", html)
 
@@ -194,12 +204,12 @@ class UserViewTestCase(TestCase):
                 sess[CURR_USER_KEY] = self.testuser.id
 
             resp = c.get(f'/users/profile')
-            html = resp.get_data(as_Text=True)
+            html = resp.get_data(as_text=True)
 
             self.assertIn("Edit this user!", html)
 
             resp = c.post(f'/users/profile', data={"username":"bettertest","email":"email@email.com"})
-            html = resp.get_data(as_Text=True)
+            html = resp.get_data(as_text=True)
 
             self.assertIn("bettertest", html)
 
@@ -211,7 +221,7 @@ class UserViewTestCase(TestCase):
                 sess[CURR_USER_KEY] = self.testuser.id
 
             resp = c.post(f'/users/delete')
-            html = resp.get_data(as_Text=True)
+            html = resp.get_data(as_text=True)
 
             resp = c.get(f'/users/{self.testuser.id}')
             self.assertEqual(resp.status_code, 404)
@@ -223,6 +233,6 @@ class UserViewTestCase(TestCase):
                 sess[CURR_USER_KEY] = self.testuser.id
 
             resp = c.get(f'/users/{self.testuser.id}/likes')
-            html = resp.get_data(as_Text=True)
+            html = resp.get_data(as_text=True)
 
             self.assertIn("Messages You've Liked:", html)

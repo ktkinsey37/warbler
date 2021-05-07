@@ -60,7 +60,7 @@ class MessageModelTestCase(TestCase):
         db.session.commit()
 
         # Tests that the message has been added to DB and now has an id
-        self.assertEqual(message.id, 1)
+        self.assertEqual(type(message.id), int)
         self.assertEqual(message.user, u)
 
 
@@ -83,7 +83,7 @@ class MessageModelTestCase(TestCase):
         db.session.add(message)
         db.session.add(message2)
 
-        # self.asserError(whenever they commit?)
+        self.assertRaises(db.session.commit())
 
 
 

@@ -24,7 +24,6 @@ toolbar = DebugToolbarExtension(app)
 
 connect_db(app)
 
-
 ##############################################################################
 # User signup/login/logout
 
@@ -269,7 +268,6 @@ def messages_add():
 
     Show form if GET. If valid, update message and redirect to user page.
     """
-    print("HELLLLLO?????")
 
     if not g.user:
         flash("Access unauthorized.", "danger")
@@ -281,10 +279,6 @@ def messages_add():
         msg = Message(text=form.text.data)
         g.user.messages.append(msg)
         db.session.commit()
-
-        print(msg, "***************************")
-        print(msg, msg.user_id, g.user.id, "*************************")
-        print("************************************************************")
 
         return redirect(f"/users/{g.user.id}")
 
